@@ -14,6 +14,7 @@ import ru.mkvhlv.featuretoggleservice.exceptions.FeatureNotFoundException;
 import ru.mkvhlv.featuretoggleservice.repository.FeatureRepository;
 import ru.mkvhlv.featuretoggleservice.repository.FeatureRoleRepository;
 import ru.mkvhlv.featuretoggleservice.rule.RoleType;
+import ru.mkvhlv.featuretoggleservice.util.SortedFeature;
 
 import java.util.List;
 
@@ -80,25 +81,22 @@ public class FeatureServiceImpl implements FeatureService<FeatureDto, String> {
             return new FeatureDecision(context.getFeatureKey(), false, DecisionReason.GLOBAL_DISABLED);
         }
 
-        List<FeatureRole> roles = featureRoleRepository.findFeatureRolesByFeature(feature);
-
-        for(FeatureRole role : roles) {
-            if (role.getType() == RoleType.ROLE && context.getRole() != null && role.getValue().equals(context.getRole())) {
-                return new FeatureDecision(context.getFeatureKey(), true, DecisionReason.ROLE_MATCH);
-            }
-        }
+        List<FeatureRole> roles = SortedFeature.quickSortRoleByPriority(featureRoleRepository.findFeatureRolesByFeature(feature));
 
         for (FeatureRole role : roles) {
-            if (role.getType() == RoleType.PERCENTAGE && context.getUserId() != null) {
-                boolean isPercentage = (context.getUserId().hashCode() & Integer.MAX_VALUE)  % 100 < Integer.parseInt(role.getValue());
-                if (isPercentage) {
-                    return new FeatureDecision(context.getFeatureKey(), true, DecisionReason.PERCENTAGE_MATCH);
-                }
+            if (role.matches(context)) {
+                DecisionReason reason = switch (role.getType()) {
+                    case ROLE -> DecisionReason.ROLE_MATCH;
+                    case PERCENTAGE -> DecisionReason.PERCENTAGE_MATCH;
+                };
 
+                return new FeatureDecision(
+                        context.getFeatureKey(),
+                        true,
+                        reason
+                );
             }
         }
-
         return new FeatureDecision(context.getFeatureKey(), false, DecisionReason.NO_MATCH);
-
     }
 }

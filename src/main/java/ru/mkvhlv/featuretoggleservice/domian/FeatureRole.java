@@ -3,6 +3,9 @@ package ru.mkvhlv.featuretoggleservice.domian;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import ru.mkvhlv.featuretoggleservice.domian.context.EvaluationContext;
+import ru.mkvhlv.featuretoggleservice.domian.decision.DecisionReason;
+import ru.mkvhlv.featuretoggleservice.domian.decision.FeatureDecision;
 import ru.mkvhlv.featuretoggleservice.rule.RoleType;
 
 @Entity
@@ -28,4 +31,25 @@ public class FeatureRole {
 
     @Column(name = "priority")
     private Integer priority;
+
+    public boolean matches(EvaluationContext context) {
+        switch (this.type) {
+            case ROLE -> {
+                return context.getRole() != null && this.value.equals(context.getRole());
+            }
+            case PERCENTAGE -> {
+                if (context.getUserId() == null) {
+                    return false;
+                }
+
+                int percentage = Integer.parseInt(this.value);
+                int bucket = (context.getUserId().hashCode() & Integer.MAX_VALUE) % 100;
+
+                return bucket < percentage;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
 }
