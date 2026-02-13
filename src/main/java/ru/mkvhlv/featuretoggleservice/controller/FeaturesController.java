@@ -5,6 +5,7 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.mkvhlv.featuretoggleservice.controller.dto.ResponseEvaluate;
+import ru.mkvhlv.featuretoggleservice.domian.context.EvaluationContext;
 import ru.mkvhlv.featuretoggleservice.domian.decision.FeatureDecision;
 import ru.mkvhlv.featuretoggleservice.dto.FeatureDto;
 import ru.mkvhlv.featuretoggleservice.service.FeatureServiceImpl;
@@ -44,9 +45,12 @@ public class FeaturesController {
     }
 
     @GetMapping("/{id}/evaluate")
-    public ResponseEntity<ResponseEvaluate> getEvaluate(@PathVariable String id) {
-        FeatureDecision decision = featureService.evaluate(id);
-        return ResponseEntity.status(HttpStatus.OK).body(new ResponseEvaluate(decision.getFeatureKey(), decision.getIsEnabled()));
+    public ResponseEntity<ResponseEvaluate> getEvaluate(@PathVariable String id,
+                                                        @RequestParam String role,
+                                                        @RequestParam String userId) {
+        EvaluationContext context = new EvaluationContext(id, role, userId);
+        FeatureDecision decision = featureService.evaluate(context);
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseEvaluate(decision.getFeatureKey(), decision.getIsEnabled(), decision.getReason()));
     }
 
 }

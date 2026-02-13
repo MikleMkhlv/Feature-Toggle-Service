@@ -13,6 +13,7 @@ public class FeatureDecision {
 
     private String featureKey;
     private final Boolean isEnabled;
+    private DecisionReason reason;
 
 
 //    public String getId() {

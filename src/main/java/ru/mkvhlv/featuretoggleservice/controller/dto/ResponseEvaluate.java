@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import ru.mkvhlv.featuretoggleservice.domian.decision.DecisionReason;
 
 @Getter
 @Setter
@@ -12,4 +13,5 @@ public class ResponseEvaluate {
 
     private String featureKey;
     private boolean isEnabled;
+    private DecisionReason decisionReason;
 }

@@ -1,27 +1,32 @@
 package ru.mkvhlv.featuretoggleservice.service;
 
 import org.modelmapper.ModelMapper;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import ru.mkvhlv.featuretoggleservice.domian.Feature;
+import ru.mkvhlv.featuretoggleservice.domian.FeatureRole;
+import ru.mkvhlv.featuretoggleservice.domian.context.EvaluationContext;
+import ru.mkvhlv.featuretoggleservice.domian.decision.DecisionReason;
 import ru.mkvhlv.featuretoggleservice.domian.decision.FeatureDecision;
 import ru.mkvhlv.featuretoggleservice.dto.FeatureDto;
 import ru.mkvhlv.featuretoggleservice.exceptions.FeatureAlreadyExistsException;
 import ru.mkvhlv.featuretoggleservice.exceptions.FeatureNotFoundException;
 import ru.mkvhlv.featuretoggleservice.repository.FeatureRepository;
+import ru.mkvhlv.featuretoggleservice.repository.FeatureRoleRepository;
+import ru.mkvhlv.featuretoggleservice.rule.RoleType;
 
-import java.util.Optional;
+import java.util.List;
 
 @Service
 public class FeatureServiceImpl implements FeatureService<FeatureDto, String> {
 
     private final ModelMapper modelMapper;
     private final FeatureRepository featureRepository;
+    private final FeatureRoleRepository featureRoleRepository;
 
-    public FeatureServiceImpl(FeatureRepository featureRepository, ModelMapper modelMapper) {
+    public FeatureServiceImpl(FeatureRepository featureRepository, FeatureRoleRepository featureRoleRepository, ModelMapper modelMapper) {
         this.featureRepository = featureRepository;
+        this.featureRoleRepository = featureRoleRepository;
         this.modelMapper = modelMapper;
     }
 
@@ -68,11 +73,32 @@ public class FeatureServiceImpl implements FeatureService<FeatureDto, String> {
         featureRepository.deleteByFeatureKey(id);
     }
 
-    public FeatureDecision evaluate(String id) {
-        Feature feature = featureRepository.findFeatureByFeatureKey(id).orElseThrow(() -> new FeatureNotFoundException("feature is not found"));
+    public FeatureDecision evaluate(EvaluationContext context) {
+        Feature feature = featureRepository.findFeatureByFeatureKey(context.getFeatureKey()).orElseThrow(() -> new FeatureNotFoundException("feature is not found"));
 
-        Boolean decision = feature.getIsEnabled();
+        if (!feature.getIsEnabled()) {
+            return new FeatureDecision(context.getFeatureKey(), false, DecisionReason.GLOBAL_DISABLED);
+        }
 
-        return new FeatureDecision(id, decision);
+        List<FeatureRole> roles = featureRoleRepository.findFeatureRolesByFeature(feature);
+
+        for(FeatureRole role : roles) {
+            if (role.getType() == RoleType.ROLE && context.getRole() != null && role.getValue().equals(context.getRole())) {
+                return new FeatureDecision(context.getFeatureKey(), true, DecisionReason.ROLE_MATCH);
+            }
+        }
+
+        for (FeatureRole role : roles) {
+            if (role.getType() == RoleType.PERCENTAGE && context.getUserId() != null) {
+                boolean isPercentage = (context.getUserId().hashCode() & Integer.MAX_VALUE)  % 100 < Integer.parseInt(role.getValue());
+                if (isPercentage) {
+                    return new FeatureDecision(context.getFeatureKey(), true, DecisionReason.PERCENTAGE_MATCH);
+                }
+
+            }
+        }
+
+        return new FeatureDecision(context.getFeatureKey(), false, DecisionReason.NO_MATCH);
+
     }
 }
